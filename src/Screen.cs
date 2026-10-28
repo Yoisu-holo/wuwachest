@@ -99,41 +99,18 @@ namespace WuwaChest
                     h = toast.Height;
                 }
             }
-            else if (snap != null)
+            else if (snap != null && snap.Chest)
             {
-                // 弹窗出现在桌宠正上方、略偏右；以 pet-dock-content 为锚点只框住弹窗，不带桌宠
-                var dock = FindDock(snap);
-                if (dock != null && dock.W > 20)
-                {
-                    double scale = dock.W / 250.0;
-                    x = (int)(dock.X + 50 * scale);
-                    y = (int)(dock.Y - 145 * scale);
-                    w = (int)(380 * scale);
-                    h = (int)(205 * scale);
-                }
-                else if (snap.Chest)
-                {
-                    x = (int)snap.ChestX - 160;
-                    y = (int)snap.ChestY - 270;
-                    w = 400;
-                    h = 220;
-                }
-                else
-                {
-                    var area = SystemInformation.PrimaryMonitorSize;
-                    x = area.Width - 720;
-                    y = area.Height - 560;
-                    w = 640;
-                    h = 480;
-                }
+                // 没有弹窗元素时，用宝箱按钮位置往上框一块
+                x = (int)snap.ChestX - 160;
+                y = (int)snap.ChestY - 270;
+                w = 400;
+                h = 220;
             }
             else
             {
-                var area = SystemInformation.PrimaryMonitorSize;
-                x = area.Width - 720;
-                y = area.Height - 560;
-                w = 640;
-                h = 480;
+                // 既没有弹窗也没有宝箱：不瞎猜区域（联机时那块是头像栏），这次就不截图
+                return null;
             }
 
             string dir = Path.Combine(logsDir, "rewards");

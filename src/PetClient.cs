@@ -323,6 +323,12 @@ namespace WuwaChest
                 if (info.ClassName == "reward-btn" || info.ClassName == "settings-btn" || info.ClassName == "reward-countdown" ||
                     info.ClassName == "pet-dock-content") continue;
                 if (NumberPattern.IsMatch(info.Name)) continue;
+                if (System.Text.RegularExpressions.Regex.IsMatch(info.Name, @"^\d{1,3}:\d{2}$")) continue;
+
+                // 只认真正的奖励弹窗：联机时头像栏/聊天也会"新出现"，不能当弹窗
+                bool isReward = (info.ClassName ?? "").IndexOf("chest-reward", StringComparison.OrdinalIgnoreCase) >= 0
+                                || (info.Name ?? "").StartsWith("新");
+                if (!isReward) continue;
 
                 if (before != null && IsKnown(before, info)) continue;
                 fresh.Add(info);

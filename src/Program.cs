@@ -72,9 +72,11 @@ namespace WuwaChest
             return false;
         }
 
+        internal const string Version = "2.1";
+
         private static void WriteHelp()
         {
-            Console.WriteLine("鸣潮桌宠 · 宝箱助手");
+            Console.WriteLine("鸣潮桌宠 · 宝箱助手 v" + Version);
             Console.WriteLine("");
             Console.WriteLine("用法：");
             Console.WriteLine("  WuwaChest.exe                 打开面板（默认启动监控）");

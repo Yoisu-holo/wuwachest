@@ -560,10 +560,10 @@ namespace WuwaChest
         }
 
         private const string PopupRectScript =
-            "(function(){var els=document.querySelectorAll('.chest-reward-popup');" +
+            "(function(){var els=document.querySelectorAll('.chest-reward-popup,.chest-reward-popup *,.chest-reward-popup-layer>div');" +
             "var minx=1e9,miny=1e9,maxx=-1,maxy=-1;var dpr=window.devicePixelRatio||1;" +
             "for(var i=0;i<els.length;i++){var e=els[i];var b=e.getBoundingClientRect();" +
-            "if(b.width<20||b.height<20)continue;var cs=getComputedStyle(e);" +
+            "if(b.width<40||b.height<40)continue;if(b.width>900||b.height>900)continue;var cs=getComputedStyle(e);" +
             "if(cs.display==='none'||cs.visibility==='hidden')continue;" +
             "if(parseFloat(cs.opacity||'1')<0.05)continue;" +
             "if(b.left<minx)minx=b.left;if(b.top<miny)miny=b.top;" +
@@ -592,7 +592,7 @@ namespace WuwaChest
                             if (session != null)
                             {
                                 png = session.CaptureScreenshotClip(
-                                    rect[0], rect[1], rect[2], rect[3],
+                                    rect[0] - 12, rect[1] - 10, rect[2] + 24, rect[3] + 52,
                                     true, rect[4], 6000);
                             }
                         }
@@ -682,7 +682,7 @@ namespace WuwaChest
 
             // 先按主页面上的弹窗坐标截（正常都是这条路）
             string cardReason;
-            string card = CaptureRewardCard(logsDir, index, out cardReason, attempts);
+            string card = CaptureRewardCard(logsDir, index, out cardReason, Math.Max(attempts, 12));
             if (!string.IsNullOrEmpty(card)) return card;
 
             // 再退回独立 toast 页的透明截图

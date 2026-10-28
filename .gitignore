@@ -1,0 +1,7 @@
+﻿# 运行时生成的文件，不进仓库
+config.json
+logs/
+rooms.txt
+stats.txt
+*.bak
+*.log

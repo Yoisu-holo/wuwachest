@@ -1,0 +1,248 @@
+// Program.cs — 入口：命令行诊断模式 + 图形界面
+using System;
+using System.IO;
+using System.Text;
+using System.Threading;
+using System.Windows.Forms;
+
+namespace WuwaChest
+{
+    internal static class Program
+    {
+        private const string MutexName = "Local\\WuwaChestV2";
+        private const string WindowTitle = "鸣潮桌宠 · 宝箱助手";
+
+        [STAThread]
+        private static int Main(string[] args)
+        {
+            string dir = AppDomain.CurrentDomain.BaseDirectory;
+            string configPath = Path.Combine(dir, "config.json");
+            string logsDir = Path.Combine(dir, "logs");
+
+            var cfg = AppConfig.Load(configPath);
+
+            if (HasArg(args, "--help") || HasArg(args, "-h") || HasArg(args, "-?"))
+            {
+                Native.TryAttachConsole();
+                WriteHelp();
+                return 0;
+            }
+
+            bool probe = HasArg(args, "--probe");
+            bool once = HasArg(args, "--once");
+            bool dryRun = HasArg(args, "--dry-run");
+
+            Native.MakeDpiAware();
+            Log.Init(logsDir, cfg.LogRetentionDays);
+
+            if (probe) return RunProbe(cfg);
+            if (HasArg(args, "--shot-test")) return RunShotTest(cfg);
+            if (once) return RunOnce(cfg, dryRun);
+
+
+            int boostCount = ArgInt(args, "--boost", 0);
+            if (boostCount > 0) return RunBoost(boostCount, cfg);
+
+            bool tray = HasArg(args, "--tray");
+            int tab = HasArg(args, "--history") ? 1 : (HasArg(args, "--settings") ? 2 : (HasArg(args, "--tools") ? 3 : (HasArg(args, "--stats") ? 4 : 0)));
+            return RunGui(cfg, tray, tab);
+        }
+
+        private static int ArgInt(string[] args, string name, int fallback)
+        {
+            if (args == null) return fallback;
+            for (int i = 0; i < args.Length - 1; i++)
+            {
+                if (string.Equals(args[i], name, StringComparison.OrdinalIgnoreCase))
+                {
+                    int value;
+                    if (int.TryParse(args[i + 1], out value)) return value;
+                }
+            }
+            return fallback;
+        }
+
+        private static bool HasArg(string[] args, string name)
+        {
+            if (args == null) return false;
+            foreach (var arg in args)
+            {
+                if (string.Equals(arg, name, StringComparison.OrdinalIgnoreCase)) return true;
+            }
+            return false;
+        }
+
+        private static void WriteHelp()
+        {
+            Console.WriteLine("鸣潮桌宠 · 宝箱助手");
+            Console.WriteLine("");
+            Console.WriteLine("用法：");
+            Console.WriteLine("  WuwaChest.exe                 打开面板（默认启动监控）");
+            Console.WriteLine("  WuwaChest.exe --tray          只驻留托盘，不弹窗口");
+            Console.WriteLine("  WuwaChest.exe --history       打开面板并切到「领取记录」");
+            Console.WriteLine("  WuwaChest.exe --settings      打开面板并切到「设置」");
+            Console.WriteLine("  WuwaChest.exe --tools         打开面板并切到「工具」（加字符）");
+            Console.WriteLine("  WuwaChest.exe --stats         打开面板并切到「统计」");
+            Console.WriteLine("  WuwaChest.exe --probe         打印当前识别到的界面元素（排障）");
+            Console.WriteLine("  WuwaChest.exe --once          立即检测并领取一次，然后退出");
+            Console.WriteLine("  WuwaChest.exe --once --dry-run  只看不点");
+            Console.WriteLine("  WuwaChest.exe --boost 1000    走内部通道瞬间加 1000 字符（需 CDP）");
+            Console.WriteLine("");
+            Console.WriteLine("配置：config.json    日志：logs\\chest-yyyyMMdd.log");
+        }
+
+        // ------------------------------------------------------------------
+        // 命令行诊断
+        // ------------------------------------------------------------------
+        private static int RunProbe(AppConfig cfg)
+        {
+            bool attached = Native.TryAttachConsole();
+            var text = new StringBuilder();
+            var client = new PetClient(cfg);
+            PetSnapshot snap = null;
+
+            try { snap = client.Read(); }
+            catch (Exception ex) { text.AppendLine("读取异常：" + ex.Message); }
+
+            if (snap != null && snap.Ok)
+            {
+                text.AppendLine("状态：已就绪");
+                text.AppendLine(string.Format("字符数：{0}（阈值 {1}）", snap.Number, AppConfig.ClaimCost));
+                text.AppendLine(snap.Chest
+                    ? "宝箱：已出现  " + snap.Info
+                    : "宝箱：未出现");
+                text.AppendLine("--- 界面元素（有尺寸的）---");
+                foreach (var element in snap.Elements) text.AppendLine("  " + element);
+            }
+            else
+            {
+                text.AppendLine("状态：未就绪");
+                if (snap != null) text.AppendLine("原因：" + snap.Reason);
+            }
+
+            string output = text.ToString();
+            if (cfg.CdpEnabled)
+            {
+                var cdpText = new StringBuilder(output);
+                var cdp = new CdpPetClient(cfg);
+                bool available = false;
+                try { available = cdp.IsAvailable(); }
+                catch { }
+
+                cdpText.AppendLine(string.Format("--- CDP（端口 {0}）---", cdp.Port));
+                cdpText.AppendLine(available ? "调试端口：可用" : "调试端口：不可用（回退 UIA）");
+                if (available)
+                {
+                    var cdpSnap = cdp.Read();
+                    cdpText.AppendLine(cdpSnap.Ok
+                        ? string.Format("CDP 读数：字符数 {0}，宝箱 {1}", cdpSnap.Number, cdpSnap.Chest ? "有" : "无")
+                        : "CDP 读取失败：" + cdpSnap.Reason);
+                    string toast = "";
+                    try { toast = cdp.ReadToastText(); }
+                    catch { }
+                    cdpText.AppendLine("弹窗文字：" + (string.IsNullOrEmpty(toast) ? "（空）" : toast));
+                }
+                output = cdpText.ToString();
+            }
+
+            try { File.WriteAllText(Path.Combine(Log.Dir, "probe.txt"), output, new UTF8Encoding(false)); }
+            catch { }
+            if (attached) Console.WriteLine(output);
+            return 0;
+        }
+
+        // 命令行内部通道加字符：WuwaChest.exe --boost 1000
+        private static int RunBoost(int count, AppConfig cfg)
+        {
+            bool attached = Native.TryAttachConsole();
+            var cdp = new CdpPetClient(cfg);
+            if (!cdp.IsAvailable())
+            {
+                if (attached) Console.WriteLine("调试端口不可用");
+                return 1;
+            }
+
+            string detail;
+            bool ok = cdp.BoostLocalClicks(count, out detail);
+            if (attached) Console.WriteLine((ok ? "成功：" : "失败：") + detail);
+            Log.Action("命令行内部通道加字符：" + (ok ? "+" + count : "失败 " + detail));
+            return ok ? 0 : 1;
+        }
+
+        // 开发用：只验证截图区域是否正确，不领取
+        private static int RunShotTest(AppConfig cfg)
+        {
+            bool attached = Native.TryAttachConsole();
+            PetSnapshot snap = null;
+            try { snap = new PetClient(cfg).Read(); }
+            catch { }
+
+            string rel = Screen.CaptureReward(Log.Dir, null, snap, 0);
+            string text = rel == null
+                ? "截图失败（桌宠是否可见？）"
+                : "已保存：" + Path.Combine(Log.Dir, rel.Replace('/', '\\'));
+
+            if (attached) Console.WriteLine(text);
+            return 0;
+        }
+
+        private static int RunOnce(AppConfig cfg, bool dryRun)
+        {
+            bool attached = Native.TryAttachConsole();
+            if (attached)
+            {
+                Log.Written += delegate(LogEntry entry) { Console.WriteLine(entry.Line); };
+            }
+
+            Log.Info("单次检测开始（阈值 " + AppConfig.ClaimCost + (dryRun ? "，预演模式）" : "）"));
+
+            var engine = new ClaimEngine(cfg, Log.Dir);
+            engine.SetDryRun(dryRun);
+
+            try { engine.RunOnceSync(); }
+            catch (Exception ex) { Log.Error("检测异常：" + ex.Message); }
+
+            return 0;
+        }
+
+        // ------------------------------------------------------------------
+        // 图形界面
+        // ------------------------------------------------------------------
+        private static int RunGui(AppConfig cfg, bool startHidden, int startTab)
+        {
+            bool created;
+            using (var mutex = new Mutex(true, MutexName, out created))
+            {
+                if (!created)
+                {
+                    ActivateExistingWindow();
+                    return 0;
+                }
+
+                Application.EnableVisualStyles();
+                Application.SetCompatibleTextRenderingDefault(false);
+
+                if (Native.IsLowIntegrity())
+                {
+                    MessageBox.Show(
+                        "当前程序以受限权限（低完整性）运行，读不到桌宠界面。\r\n\r\n" +
+                        "请直接双击 WuwaChest.exe 运行；不要从受限的终端或沙箱里启动它。",
+                        "权限不足", MessageBoxButtons.OK, MessageBoxIcon.Warning);
+                }
+
+                Application.Run(new MainForm(cfg, startHidden, startTab));
+                GC.KeepAlive(mutex);
+            }
+            return 0;
+        }
+
+        private static void ActivateExistingWindow()
+        {
+            var handle = Native.FindWindow(null, WindowTitle);
+            if (handle == IntPtr.Zero) return;
+            Native.ShowWindow(handle, 5);   // SW_SHOW（托盘隐藏时也能拉出来）
+            Native.ShowWindow(handle, 9);   // SW_RESTORE
+            Native.SetForegroundWindow(handle);
+        }
+    }
+}

@@ -1,4 +1,4 @@
-﻿// Rooms.cs — 联机房间：读当前房间号、记录历史、一键重连
+// Rooms.cs — 联机房间：读当前房间号、记录历史、一键重连
 // 面板窗口（#/panel）里的 .room-module 才有房间信息；重连就是「先离开、再填号、再点加入」，
 // 和上游 WuwaTappoPlus 的 rooms.js 走同一套 DOM，不碰协议。
 using System;
@@ -135,7 +135,63 @@ namespace WuwaChest
             "(input?1:0),(btn?(btn.disabled?2:1):0)].join('|');" +
             "})()";
 
+        // 主页面 store 里的房间号：面板没打开时也能读到
+        private const string StoreScript =
+            "(function(){var app=document.querySelector('#app');" +
+            "if(!app||!app.__vue_app__)return 'nostore';" +
+            "var p=app.__vue_app__.config.globalProperties.$pinia;" +
+            "var gs=p?p._s.get('GlobalState'):null;if(!gs)return 'nostore';" +
+            "var u=gs.$state.userInfo||{};" +
+            "return ['store',(u.room_no||''),(u.nickname||'')].join('|');})()";
+
         public bool ReadNow(out RoomInfo info, out string reason)
+        {
+            info = new RoomInfo();
+            reason = "";
+
+            RoomInfo fromPanel;
+            string panelReason;
+
+            // 先看主页面 store：面板从来没打开过时，这是唯一能读到房间号的地方
+            RoomInfo fromStore;
+            string storeReason;
+            if (ReadFromStore(out fromStore, out storeReason) && !string.IsNullOrEmpty(fromStore.Id))
+            {
+                info = fromStore;
+                // 面板开着就把房主补上（房主名只存在面板 DOM 里）
+                if (ReadFromPanel(out fromPanel, out panelReason) && fromPanel.Id == info.Id)
+                    info.Owner = fromPanel.Owner;
+                return true;
+            }
+
+            // store 里没有，再退回面板
+            if (ReadFromPanel(out fromPanel, out panelReason))
+            {
+                info = fromPanel;
+                return true;
+            }
+
+            reason = panelReason;
+            if (string.IsNullOrEmpty(reason)) reason = storeReason;
+            return false;
+        }
+
+        private bool ReadFromStore(out RoomInfo info, out string reason)
+        {
+            info = new RoomInfo();
+            reason = "";
+            string raw;
+            if (!EvalMain(StoreScript, 3000, out raw, out reason)) return false;
+            if (string.IsNullOrEmpty(raw) || raw == "nostore") { reason = "主页面没有 store"; return false; }
+
+            var parts = raw.Split('|');
+            if (parts.Length < 3) { reason = "store 格式异常"; return false; }
+            info.Id = (parts[1] ?? "").Trim();
+            info.Owner = "";
+            return true;
+        }
+
+        private bool ReadFromPanel(out RoomInfo info, out string reason)
         {
             info = new RoomInfo();
             reason = "";
@@ -162,6 +218,12 @@ namespace WuwaChest
                 reason = "房间号格式不对";
                 return false;
             }
+
+                if (!EnsurePanel(8000))
+                {
+                    reason = "重连需要桌宠面板：请先点开一次桌宠的「设置」，再回来点「重连」";
+                    return false;
+                }
 
             Note("正在重连 " + roomId + "…");
 
@@ -275,6 +337,54 @@ namespace WuwaChest
             while (DateTime.Now < deadline)
             {
                 if (EvalPanel(script, 2500, out raw, out reason) && raw != null && raw.Trim() == expected) return true;
+                Thread.Sleep(300);
+            }
+            return false;
+        }
+
+        private bool EvalMain(string script, int timeoutMs, out string result, out string reason)
+        {
+            result = null;
+            reason = "";
+            try
+            {
+                var page = FindMainPage();
+                if (page == null) { reason = "找不到桌宠主页面"; return false; }
+
+                using (var session = CdpSession.Connect(page.WebSocketUrl, 3000))
+                {
+                    if (session == null) { reason = "连接调试端口失败"; return false; }
+                    result = session.EvaluateString(script, timeoutMs);
+                    return result != null;
+                }
+            }
+            catch (Exception ex)
+            {
+                reason = "读取主页面异常：" + ex.Message;
+                return false;
+            }
+        }
+
+        private CdpTarget FindMainPage()
+        {
+            foreach (var target in CdpDiscovery.ListTargets(CdpDiscovery.ResolvePort(_port)))
+            {
+                if (target.Url == null) continue;
+                if (target.Url.EndsWith("#/", StringComparison.Ordinal)) return target;
+            }
+            return null;
+        }
+
+        // 面板窗口点开设置才会被创建；重连前先把它叫出来（相当于替你点一下设置）
+        // 面板窗口是桌宠自己创建的子窗口，只能在它出现后使用；这里只等待，不去误点按钮
+        private bool EnsurePanel(int timeoutMs)
+        {
+            if (FindPanelPage() != null) return true;
+
+            var deadline = DateTime.Now.AddMilliseconds(timeoutMs);
+            while (DateTime.Now < deadline)
+            {
+                if (FindPanelPage() != null) return true;
                 Thread.Sleep(300);
             }
             return false;

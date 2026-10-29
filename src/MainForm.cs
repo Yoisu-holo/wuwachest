@@ -1103,15 +1103,24 @@ namespace WuwaChest
             BackgroundImage = null;
             foreach (TabPage page in _tabs.TabPages) page.BackgroundImage = null;
 
+            Image source = null;
             string name = _cfg.BackgroundImage;
-            if (string.IsNullOrEmpty(name)) return;
+            if (!string.IsNullOrEmpty(name))
+            {
+                string path = Path.IsPathRooted(name) ? name : Path.Combine(_dir, name);
+                if (File.Exists(path))
+                {
+                    try { source = Image.FromFile(path); }
+                    catch { source = null; }
+                }
+            }
 
-            string path = Path.IsPathRooted(name) ? name : Path.Combine(_dir, name);
-            if (!File.Exists(path)) return;
+            // 没配置、或者配置的文件不在了 → 用内嵌的默认背景
+            if (source == null) source = DefaultBackground.Load();
+            if (source == null) return;
 
             try
             {
-                using (var source = Image.FromFile(path))
                 {
                     int width = ClientSize.Width;
                     int height = ClientSize.Height;
@@ -1157,8 +1166,9 @@ namespace WuwaChest
                         catch { page.BackgroundImage = bitmap; }
                     }
                 }
+                if (source != null) source.Dispose();
             }
-            catch { }
+            catch { if (source != null) source.Dispose(); }
         }
 
         // ---------------- 联机房间 ----------------

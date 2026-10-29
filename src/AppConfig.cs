@@ -146,7 +146,7 @@ namespace WuwaChest
             sb.AppendLine("  \"cdpPort\": " + CdpPort + ",");
             sb.AppendLine("  \"cdpAutoEnable\": " + (CdpAutoEnable ? "true" : "false") + ",");
             sb.AppendLine("  \"cdpAutoRestartPet\": " + (CdpAutoRestartPet ? "true" : "false") + ",");
-            sb.AppendLine("  \"cdpDisableOnExit\": " + (CdpDisableOnExit ? "true" : "false") + ",");
+            sb.AppendLine("  \"cdpDisableOnExit\": " + (CdpDisableOnExit ? "true" : "false"));
 
 
 

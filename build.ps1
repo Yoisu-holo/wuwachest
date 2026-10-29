@@ -129,6 +129,8 @@ $arguments = @(
     ('/win32manifest:' + (Join-Path $root 'app.manifest')),
     ('/win32icon:' + $ico),
     ('/resource:' + $png + ',AppIcon.png'),
+    # 默认面板背景（没有配置 backgroundImage 时用它）
+    ('/resource:' + (Join-Path $root 'default-background.jpg') + ',DefaultBackground.jpg'),
     ('/out:' + $out),
     '/r:System.dll', '/r:System.Core.dll', '/r:System.Drawing.dll',
     '/r:System.Windows.Forms.dll', '/r:Microsoft.CSharp.dll'

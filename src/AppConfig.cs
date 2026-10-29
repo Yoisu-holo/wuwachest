@@ -1,4 +1,4 @@
-﻿// AppConfig.cs — 配置读写（兼容旧版 config.json 的字段名，直接手改也能生效）
+// AppConfig.cs — 配置读写（兼容旧版 config.json 的字段名，直接手改也能生效）
 using System;
 using System.Globalization;
 using System.IO;
@@ -21,7 +21,8 @@ namespace WuwaChest
         public bool AutoStartMonitor = true;      // 程序启动后自动开始监控
         public int LogRetentionDays = 30;
         public bool RewardScreenshots = true;     // 领取时截图记录「拿到了什么」
-        public int RewardShotDelayMs = 900;       // 点击后等多久截图（弹窗动画刚展开）
+        public string RewardShotMode = "dom";    // 奖励图：dom=合成（不闪屏），screen=CDP 截图（会闪）
+        public int RewardShotDelayMs = 900;      // 点击后等多久截图（弹窗动画刚展开）
         public string BackgroundImage = "";       // 面板背景图（相对 exe 目录或绝对路径）
         public int BackgroundDim = 45;
         public bool CdpEnabled = true;            // 优先用 CDP（WebView2 调试端口）读写页面，失败退回 UIA
@@ -93,6 +94,7 @@ namespace WuwaChest
             cfg.LogRetentionDays = Int(json, "logRetentionDays", cfg.LogRetentionDays);
             cfg.RewardScreenshots = Bool(json, "rewardScreenshots", cfg.RewardScreenshots);
             cfg.RewardShotDelayMs = Int(json, "rewardShotDelayMs", cfg.RewardShotDelayMs);
+            cfg.RewardShotMode = Str(json, "rewardShotMode", cfg.RewardShotMode);
             cfg.BackgroundImage = Str(json, "backgroundImage", cfg.BackgroundImage);
             cfg.BackgroundDim = Int(json, "backgroundDim", cfg.BackgroundDim);
             cfg.CdpEnabled = Bool(json, "cdpEnabled", cfg.CdpEnabled);
@@ -137,6 +139,7 @@ namespace WuwaChest
             sb.AppendLine("  \"logRetentionDays\": " + LogRetentionDays + ",");
             sb.AppendLine("  \"rewardScreenshots\": " + (RewardScreenshots ? "true" : "false") + ",");
             sb.AppendLine("  \"rewardShotDelayMs\": " + RewardShotDelayMs + ",");
+            sb.AppendLine("  \"rewardShotMode\": \"" + RewardShotMode + "\",");
             sb.AppendLine("  \"backgroundImage\": \"" + Esc(BackgroundImage) + "\",");
             sb.AppendLine("  \"backgroundDim\": " + BackgroundDim + ",");
             sb.AppendLine("  \"cdpEnabled\": " + (CdpEnabled ? "true" : "false") + ",");

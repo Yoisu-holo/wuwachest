@@ -172,6 +172,7 @@ WuwaChest.exe --sync-import D:\sync\a.wcsync --with-settings   连设置一起�
 | `logRetentionDays` | `30` | 日志保留天数 |
 | `rewardScreenshots` | `true` | 领取时截图记录奖励 |
 | `rewardShotDelayMs` | `900` | 点击后等多久截图（毫秒） |
+| `rewardShotMode` | `dom` | 奖励图生成方式：`dom`=从页面取图合成（不闪屏），`screen`=CDP 截图（会闪一下） |
 | `backgroundImage` | `""` | 面板背景图（相对 exe 目录或绝对路径） |
 | `backgroundDim` | `45` | 背景图压暗程度 0–90 |
 | `cdpEnabled` | `true` | 优先用 CDP |
@@ -317,6 +318,12 @@ WuwaChest.exe --boost 1000      走内部通道加 1000 字符（需 CDP）
 ---
 
 ## 更新日志
+
+
+### 未发布（v2.3 待定）
+- 修复：首次启动没打开过设置时读不到房间号（改从主页面 store 读 `user_info.room_no`）
+- 修复：房间列表不再显示「（当前）」，当前房间只标绿
+- 新增：奖励图改由 DOM 合成（`rewardShotMode=dom`），彻底避免领取时桌宠闪烁
 
 ### v2.2
 - 新增：自动开启/关闭 CDP（启动写策略、必要时重启桌宠，退出撤销自己写的）

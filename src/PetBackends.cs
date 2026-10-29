@@ -50,9 +50,11 @@ namespace WuwaChest
     {
         private readonly CdpPetClient _cdp;
         private readonly UiaBackend _fallback;
+        private readonly AppConfig _cfg;
 
         public CdpBackend(AppConfig cfg)
         {
+            _cfg = cfg;
             _cdp = new CdpPetClient(cfg);
             _fallback = new UiaBackend(cfg);
         }
@@ -114,9 +116,22 @@ namespace WuwaChest
 
         public string CaptureReward(string logsDir, ToastInfo toast, PetSnapshot snap, int index)
         {
-            // CDP 截图是透明背景，按 alpha 裁完只剩卡片
             string relative = null;
             string reason = "";
+
+            // 优先 DOM 合成：完全不截屏，桌宠不会闪
+            string mode = _cfg == null ? "dom" : (_cfg.RewardShotMode ?? "dom");
+            if (!string.Equals(mode, "screen", StringComparison.OrdinalIgnoreCase))
+            {
+                try { relative = _cdp.CaptureCardFromDom(logsDir, index, out reason, 6); }
+                catch (Exception ex) { reason = ex.Message; }
+                if (!string.IsNullOrEmpty(relative)) return relative;
+                if (!string.IsNullOrEmpty(reason))
+                    Log.Warn("DOM 合成奖励图失败（" + reason + "），改用 CDP 截图（可能闪一下）");
+            }
+
+            // 兜底：CDP 截图（透明背景，按 alpha 裁完只剩卡片）
+            reason = "";
             try { relative = _cdp.CaptureToast(logsDir, index, out reason, 5); }
             catch (Exception ex) { reason = ex.Message; }
             if (!string.IsNullOrEmpty(relative)) return relative;

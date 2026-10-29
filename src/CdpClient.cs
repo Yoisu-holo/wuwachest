@@ -678,6 +678,41 @@ namespace WuwaChest
         }
 
         // 截弹窗页（透明背景），裁掉四周透明区域，只留卡片
+        // 不截图，直接从页面 DOM 取奖励图 + 文字自己合成（完全不碰截图接口，不会闪）
+        public string CaptureCardFromDom(string logsDir, int index, out string reason, int attempts)
+        {
+            reason = "";
+            var page = FindMainPage();
+            if (page == null) { reason = "找不到主页面"; return null; }
+
+            for (int attempt = 0; attempt < attempts; attempt++)
+            {
+                string raw = null;
+                try
+                {
+                    using (var session = CdpSession.Connect(page.WebSocketUrl, 3000))
+                    {
+                        if (session != null) raw = session.EvaluateString(RewardCard.Script, 8000, true);
+                    }
+                }
+                catch (Exception ex) { reason = "读取弹窗异常：" + ex.Message; }
+
+                if (raw == "none") reason = "弹窗还没出现";
+                else if (raw == "noimg") reason = "弹窗里没有奖励图";
+                else if (raw == "nosize") reason = "奖励图尺寸为 0";
+                else if (raw == "fetchfail") reason = "奖励图下载失败";
+                else if (!string.IsNullOrEmpty(raw))
+                {
+                    string result = RewardCard.Render(raw, logsDir, index, out reason);
+                    if (!string.IsNullOrEmpty(result)) return result;
+                }
+                else if (string.IsNullOrEmpty(reason)) reason = "读不到弹窗数据";
+
+                System.Threading.Thread.Sleep(400);
+            }
+            return null;
+        }
+
         public string CaptureToast(string logsDir, int index)
         {
             string reason;

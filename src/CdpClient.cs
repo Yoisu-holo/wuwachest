@@ -285,7 +285,7 @@ namespace WuwaChest
                                 ",\"width\":" + width.ToString("0.##", culture) +
                                 ",\"height\":" + height.ToString("0.##", culture) +
                                 ",\"scale\":" + scale.ToString("0.##", culture) + "}" +
-                                ",\"captureBeyondViewport\":true}";
+                                ",\"captureBeyondViewport\":false}";
             string response = Call("Page.captureScreenshot", parameters, timeoutMs);
             if (response == null) return null;
             var m = Regex.Match(response, "\"data\"\\s*:\\s*\"([^\"]+)\"");

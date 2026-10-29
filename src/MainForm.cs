@@ -1,4 +1,4 @@
-﻿// MainForm.cs — 面板：状态 / 领取记录 / 设置，加上托盘与自启
+// MainForm.cs — 面板：状态 / 领取记录 / 设置，加上托盘与自启
 using System;
 using System.Collections.Generic;
 using System.Diagnostics;
@@ -1241,7 +1241,6 @@ namespace WuwaChest
 
                 string label = entry.Id;
                 if (!string.IsNullOrEmpty(entry.Owner)) label += "  " + entry.Owner;
-                if (entry.Id == current) label += "（当前）";
                 if (entry.Visits > 1) label += "  ×" + entry.Visits;
 
                 var text = new Label

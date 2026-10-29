@@ -560,10 +560,18 @@ namespace WuwaChest
         }
 
         private const string PopupRectScript =
-            "(function(){var els=document.querySelectorAll('.chest-reward-popup,.chest-reward-popup *,.chest-reward-popup-layer>div');" +
+            // 只取「最后一个」弹窗（DOM 里最新挂上的那个），避免上一张还没淡出时把两张算在一起
+            "(function(){var list=document.querySelectorAll('.chest-reward-popup');var root=null;" +
+            "for(var i=list.length-1;i>=0;i--){var b=list[i].getBoundingClientRect();" +
+            "if(b.width>=40&&b.height>=40&&b.width<=900&&b.height<=900){root=list[i];break;}}" +
+            "var els=[];" +
+            "if(root){els.push(root);var kids=root.querySelectorAll('*');for(var k=0;k<kids.length;k++)els.push(kids[k]);}" +
+            "else{var l2=document.querySelectorAll('.chest-reward-popup-layer>div');" +
+            "for(var j=l2.length-1;j>=0;j--){var bb=l2[j].getBoundingClientRect();" +
+            "if(bb.width>=40&&bb.height>=40&&bb.width<=900&&bb.height<=900){els.push(l2[j]);break;}}}" +
             "var minx=1e9,miny=1e9,maxx=-1,maxy=-1;var dpr=window.devicePixelRatio||1;" +
-            "for(var i=0;i<els.length;i++){var e=els[i];var b=e.getBoundingClientRect();" +
-            "if(b.width<40||b.height<40)continue;if(b.width>900||b.height>900)continue;var cs=getComputedStyle(e);" +
+            "for(var m=0;m<els.length;m++){var e=els[m];var b=e.getBoundingClientRect();" +
+            "if(b.width<40||b.height<40)continue;var cs=getComputedStyle(e);" +
             "if(cs.display==='none'||cs.visibility==='hidden')continue;" +
             "if(parseFloat(cs.opacity||'1')<0.05)continue;" +
             "if(b.left<minx)minx=b.left;if(b.top<miny)miny=b.top;" +

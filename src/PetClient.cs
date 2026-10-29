@@ -354,7 +354,8 @@ namespace WuwaChest
             toast.Y = (int)minY - 8;
             toast.Width = (int)(maxX - minX) + 16;
             toast.Height = (int)(maxY - minY) + 16;
-            toast.Text = string.Join("、", names.ToArray());
+            // 只保留最新一条奖励名：两次领取间隔很短时，上一张弹窗可能还在，别把它的名字带进来
+            toast.Text = names.Count > 0 ? names[names.Count - 1] : "";
             toast.Found = toast.Width > 40 && toast.Height > 40;
 
             var debug = new System.Text.StringBuilder();

@@ -1,4 +1,4 @@
-// Stats.cs — 字符数历史：按小时记录累计值，供图表使用
+﻿// Stats.cs — 字符数历史：按小时记录累计值，供图表使用
 // 存储格式（stats.txt，一行一个小时）：
 //   yyyyMMddHH|cumulative
 // 只保留每个小时里见到的最大累计值（累计只增不减，取最大最稳）。
@@ -159,6 +159,26 @@ namespace WuwaChest
                 previous = value;
             }
             return list;
+        }
+
+        /// <summary>合并外部统计行（yyyyMMddHH|cumulative），同小时取较大值</summary>
+        public void MergeLines(IEnumerable<string> lines)
+        {
+            if (lines == null) return;
+            lock (_hours)
+            {
+                foreach (var line in lines)
+                {
+                    if (string.IsNullOrEmpty(line)) continue;
+                    var p = line.Split('|');
+                    if (p.Length < 2) continue;
+                    int value;
+                    if (!int.TryParse(p[1], out value)) continue;
+                    int old;
+                    if (!_hours.TryGetValue(p[0], out old) || value > old) _hours[p[0]] = value;
+                }
+            }
+            Save();
         }
     }
 }

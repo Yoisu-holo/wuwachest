@@ -1,4 +1,4 @@
-// AppConfig.cs — 配置读写（兼容旧版 config.json 的字段名，直接手改也能生效）
+﻿// AppConfig.cs — 配置读写（兼容旧版 config.json 的字段名，直接手改也能生效）
 using System;
 using System.Globalization;
 using System.IO;
@@ -26,6 +26,9 @@ namespace WuwaChest
         public int BackgroundDim = 45;
         public bool CdpEnabled = true;            // 优先用 CDP（WebView2 调试端口）读写页面，失败退回 UIA
         public int CdpPort = 9333;                // 调试端口（与 WebView2 策略里写的一致）
+        public bool CdpAutoEnable = true;         // 启动时自动写入调试策略（需要管理员）
+        public bool CdpAutoRestartPet = true;     // 写入策略后自动重启桌宠让它生效
+        public bool CdpDisableOnExit = true;      // 退出时撤销策略
 
         private static string Token(string json, string key)
         {
@@ -94,6 +97,9 @@ namespace WuwaChest
             cfg.BackgroundDim = Int(json, "backgroundDim", cfg.BackgroundDim);
             cfg.CdpEnabled = Bool(json, "cdpEnabled", cfg.CdpEnabled);
             cfg.CdpPort = Int(json, "cdpPort", cfg.CdpPort);
+            cfg.CdpAutoEnable = Bool(json, "cdpAutoEnable", cfg.CdpAutoEnable);
+            cfg.CdpAutoRestartPet = Bool(json, "cdpAutoRestartPet", cfg.CdpAutoRestartPet);
+            cfg.CdpDisableOnExit = Bool(json, "cdpDisableOnExit", cfg.CdpDisableOnExit);
 
 
 
@@ -135,6 +141,9 @@ namespace WuwaChest
             sb.AppendLine("  \"backgroundDim\": " + BackgroundDim + ",");
             sb.AppendLine("  \"cdpEnabled\": " + (CdpEnabled ? "true" : "false") + ",");
             sb.AppendLine("  \"cdpPort\": " + CdpPort + ",");
+            sb.AppendLine("  \"cdpAutoEnable\": " + (CdpAutoEnable ? "true" : "false") + ",");
+            sb.AppendLine("  \"cdpAutoRestartPet\": " + (CdpAutoRestartPet ? "true" : "false") + ",");
+            sb.AppendLine("  \"cdpDisableOnExit\": " + (CdpDisableOnExit ? "true" : "false") + ",");
 
 
 

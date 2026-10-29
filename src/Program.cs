@@ -35,9 +35,58 @@ namespace WuwaChest
             Native.MakeDpiAware();
             Log.Init(logsDir, cfg.LogRetentionDays);
 
+            // 命令行：设置背景图（也方便脚本/测试）
+            string bgArg = ArgString(args, "--set-background");
+            if (!string.IsNullOrEmpty(bgArg))
+            {
+                try
+                {
+                    string stored = BackgroundFile.Install(dir, bgArg);
+                    var bgCfg = AppConfig.Load(configPath);
+                    bgCfg.BackgroundImage = stored;
+                    bgCfg.Save(configPath);
+                    Log.Action("背景图已设置：" + stored);
+                    return 0;
+                }
+                catch (Exception ex)
+                {
+                    Log.Error("设置背景图失败：" + ex.Message);
+                    return 1;
+                }
+            }
+
+            // 命令行：导出 / 导入同步包
+            string syncExport = ArgString(args, "--sync-export");
+            if (!string.IsNullOrEmpty(syncExport))
+            {
+                try { SyncService.ExportToFile(syncExport, dir, logsDir); Log.Action("已导出同步包：" + syncExport); return 0; }
+                catch (Exception ex) { Log.Error("导出失败：" + ex.Message); return 1; }
+            }
+            string syncImport = ArgString(args, "--sync-import");
+            if (!string.IsNullOrEmpty(syncImport))
+            {
+                try
+                {
+                    var pkg2 = SyncService.ReadPackage(syncImport);
+                    var res = SyncService.Apply(pkg2, dir, logsDir, HasArg(args, "--with-settings"));
+                    Log.Action(string.Format("已导入同步包：领取 +{0}，房间 {1}，字符数 {2}{3}",
+                        res.ClaimsAdded, res.RoomsMerged, res.StatsMerged, res.ConfigApplied ? "，设置已覆盖" : ""));
+                    return 0;
+                }
+                catch (Exception ex) { Log.Error("导入失败：" + ex.Message); return 1; }
+            }
+
             if (probe) return RunProbe(cfg);
             if (HasArg(args, "--shot-test")) return RunShotTest(cfg);
-            if (once) return RunOnce(cfg, dryRun);
+            // 启动时自动开启 CDP（策略不存在且未提权时，会请求管理员权限重启自己）
+            if (CdpSetup.PrepareAndMaybeElevate(cfg, args)) return 0;
+
+            if (once)
+            {
+                int onceCode = RunOnce(cfg, dryRun);
+                CdpSetup.RestoreOnExit(cfg);
+                return onceCode;
+            }
 
 
             int boostCount = ArgInt(args, "--boost", 0);
@@ -62,6 +111,15 @@ namespace WuwaChest
             return fallback;
         }
 
+        private static string ArgString(string[] args, string name)
+        {
+            if (args == null) return null;
+            for (int i = 0; i < args.Length - 1; i++)
+            {
+                if (string.Equals(args[i], name, StringComparison.OrdinalIgnoreCase)) return args[i + 1];
+            }
+            return null;
+        }
         private static bool HasArg(string[] args, string name)
         {
             if (args == null) return false;
@@ -72,7 +130,7 @@ namespace WuwaChest
             return false;
         }
 
-        internal const string Version = "2.1";
+        internal const string Version = "2.2";
 
         private static void WriteHelp()
         {
@@ -233,6 +291,7 @@ namespace WuwaChest
                 }
 
                 Application.Run(new MainForm(cfg, startHidden, startTab));
+                CdpSetup.RestoreOnExit(cfg);
                 GC.KeepAlive(mutex);
             }
             return 0;

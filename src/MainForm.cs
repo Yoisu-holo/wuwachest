@@ -1,4 +1,4 @@
-// MainForm.cs — 面板：状态 / 领取记录 / 设置，加上托盘与自启
+﻿// MainForm.cs — 面板：状态 / 领取记录 / 设置，加上托盘与自启
 using System;
 using System.Collections.Generic;
 using System.Diagnostics;
@@ -400,6 +400,16 @@ namespace WuwaChest
             settingsFlow.Controls.Add(MakeSettingRow("", _setAutostart));
             settingsFlow.Controls.Add(MakeSettingRow("面板背景图", backgroundButtons));
             settingsFlow.Controls.Add(MakeSettingRow("背景图浓度（越大越淡）", _setBackgroundDim));
+            var syncButtons = new FlowLayoutPanel
+            {
+                Width = 236,
+                Height = 32,
+                FlowDirection = FlowDirection.LeftToRight,
+                WrapContents = false
+            };
+            syncButtons.Controls.Add(MakeButton("导出同步包…", delegate { ExportSync(); }));
+            syncButtons.Controls.Add(MakeButton("导入同步包…", delegate { ImportSync(); }));
+            settingsFlow.Controls.Add(MakeSettingRow("跨电脑同步", syncButtons));
 
             var settingsButtons = new FlowLayoutPanel
             {
@@ -1013,19 +1023,9 @@ namespace WuwaChest
 
                 try
                 {
-                    string ext = Path.GetExtension(dialog.FileName).ToLowerInvariant();
-                    if (ext != ".png" && ext != ".jpg" && ext != ".jpeg" && ext != ".bmp") ext = ".png";
-
-                    foreach (var old in Directory.GetFiles(_dir, "background.*"))
-                    {
-                        try { File.Delete(old); } catch { }
-                    }
-
-                    string target = Path.Combine(_dir, "background" + ext);
-                    File.Copy(dialog.FileName, target, true);
-
+                    string stored = BackgroundFile.Install(_dir, dialog.FileName);
                     _cfg = _cfg.Clone();
-                    _cfg.BackgroundImage = Path.GetFileName(target);
+                    _cfg.BackgroundImage = stored;
                     _cfg.Save(_configPath);
                     _engine.UpdateConfig(_cfg);
                     ApplyBackground();
@@ -1366,6 +1366,90 @@ namespace WuwaChest
             }
         }
 
+        // ------------------------------------------------------------------
+        // 跨电脑同步
+        // ------------------------------------------------------------------
+        private void ExportSync()
+        {
+            using (var dialog = new SaveFileDialog())
+            {
+                dialog.Filter = "WuwaChest 同步包 (*" + SyncService.Extension + ")|*" + SyncService.Extension + "|JSON 文件 (*.json)|*.json";
+                dialog.FileName = "WuwaChest-" + Environment.MachineName + "-" + DateTime.Now.ToString("yyyyMMdd-HHmm") + SyncService.Extension;
+                if (dialog.ShowDialog(this) != DialogResult.OK) return;
+
+                try
+                {
+                    SyncService.ExportToFile(dialog.FileName, _dir, _logsDir);
+                    var pkg = SyncService.Collect(_dir, _logsDir);
+                    MessageBox.Show(this,
+                        "已导出：\r\n\r\n领取记录 " + pkg.Claims.Count + " 条\r\n房间 " + pkg.Rooms.Count + " 条\r\n字符数 " + pkg.Stats.Count + " 条\r\n设置已包含\r\n\r\n" + dialog.FileName,
+                        "导出完成", MessageBoxButtons.OK, MessageBoxIcon.Information);
+                }
+                catch (Exception ex)
+                {
+                    MessageBox.Show(this, ex.Message, "导出失败", MessageBoxButtons.OK, MessageBoxIcon.Error);
+                }
+            }
+        }
+
+        private void ImportSync()
+        {
+            using (var dialog = new OpenFileDialog())
+            {
+                dialog.Filter = "WuwaChest 同步包 (*" + SyncService.Extension + ")|*" + SyncService.Extension + "|JSON 文件 (*.json)|*.json";
+                if (dialog.ShowDialog(this) != DialogResult.OK) return;
+
+                SyncPackage pkg;
+                try { pkg = SyncService.ReadPackage(dialog.FileName); }
+                catch (Exception ex)
+                {
+                    MessageBox.Show(this, ex.Message, "不能读取这个文件", MessageBoxButtons.OK, MessageBoxIcon.Error);
+                    return;
+                }
+
+                var choice = MessageBox.Show(this,
+                    "来自：" + pkg.Machine + "    导出时间：" + pkg.ExportedAt + "\r\n" +
+                    "领取记录 " + pkg.Claims.Count + " 条 / 房间 " + pkg.Rooms.Count + " 条 / 字符数 " + pkg.Stats.Count + " 条\r\n\r\n" +
+                    "「是」= 合并数据，并用包里的设置覆盖本机设置\r\n" +
+                    "「否」= 只合并数据，保留本机设置\r\n" +
+                    "「取消」= 什么都不做",
+                    "导入同步包", MessageBoxButtons.YesNoCancel, MessageBoxIcon.Question);
+
+                if (choice == DialogResult.Cancel) return;
+                bool withSettings = choice == DialogResult.Yes;
+
+                try
+                {
+                    var result = SyncService.Apply(pkg, _dir, _logsDir, withSettings);
+
+                    // 同步内存里的统计与房间（否则它们下次保存会把合并结果盖掉）
+                    if (_stats != null) _stats.MergeLines(pkg.Stats);
+                    if (_rooms != null) _rooms.MergeLines(pkg.Rooms);
+
+                    if (result.ConfigApplied)
+                    {
+                        var reloaded = AppConfig.Load(Path.Combine(_dir, "config.json"));
+                        if (reloaded != null) _cfg = reloaded;
+                    }
+
+                    LoadClaims();
+
+                    var text = new StringBuilder();
+                    text.AppendLine("合并完成：");
+                    text.AppendLine("· 领取记录 +" + result.ClaimsAdded + " 条");
+                    text.AppendLine("· 房间 " + result.RoomsMerged + " 条");
+                    text.AppendLine("· 字符数 " + result.StatsMerged + " 个时段");
+                    text.AppendLine(result.ConfigApplied ? "· 设置已用同步包覆盖（部分项重启后生效）" : "· 本机设置保持不变");
+                    foreach (var note in result.Notes) text.AppendLine("! " + note);
+
+                    MessageBox.Show(this, text.ToString(), "导入完成", MessageBoxButtons.OK, MessageBoxIcon.Information);
+                }
+                catch (Exception ex)
+                {
+                    MessageBox.Show(this, ex.Message, "导入失败", MessageBoxButtons.OK, MessageBoxIcon.Error);
+                }
+            }
+        }
         // ------------------------------------------------------------------
         // 设置
         // ------------------------------------------------------------------

@@ -90,6 +90,32 @@ Set-ItemProperty -Path $key -Name 'WuwaTappo.exe' -Value '--remote-debugging-por
 
 ---
 
+## 自动开启 CDP
+
+程序会自己管理调试端口，不需要再手动跑脚本：
+
+**启动时**
+1. 检查注册表策略里有没有 `WuwaTappo.exe → --remote-debugging-port=9333`
+2. 没有、且当前不是管理员 → 弹 UAC，请求以管理员身份重启自己（拒绝则退回 UIA）
+3. 写入策略
+4. 如果端口还没开、且桌宠正在运行 → 自动重启桌宠让它加载参数（约 4 秒）
+   - 端口本来就开着（桌宠上次就是带参数启动的）→ **不重启**，直接进入 CDP
+
+**退出时**
+- 撤销策略（端口在桌宠下次重启后关闭）
+
+**相关配置**
+
+| 键 | 默认 | 说明 |
+| --- | --- | --- |
+| `cdpAutoEnable` | `true` | 启动时自动检查并写入策略 |
+| `cdpAutoRestartPet` | `true` | 写入策略后自动重启桌宠让它生效 |
+| `cdpDisableOnExit` | `true` | 退出时撤销策略 |
+
+> 如果不想每次启动都弹一次 UAC，把 `cdpDisableOnExit` 改成 `false`
+> （策略保留，之后每次启动都是零打扰、直接 CDP；代价是端口一直开着，仅监听本机）。
+---
+
 ## 快速开始
 
 1. 下载 `WuwaChest.exe`，放到一个固定目录（例如 `D:\Tools\WuwaChest\`）
@@ -101,6 +127,37 @@ Set-ItemProperty -Path $key -Name 'WuwaTappo.exe' -Value '--remote-debugging-por
 
 ---
 
+## 跨电脑同步
+
+设置页 →「跨电脑同步」→「导出同步包…」/「导入同步包…」。
+
+同步包是一个 `.wcsync` 文件（其实就是 JSON），里面装四样东西：
+
+| 内容 | 来源 |
+| --- | --- |
+| 设置 | `config.json` |
+| 领取记录 | 所有 `logs/chest-*.log` 里的「领取成功」行 |
+| 房间历史 | `rooms.txt` |
+| 字符数统计 | `stats.txt` |
+
+**合并规则**
+
+| 数据 | 规则 |
+| --- | --- |
+| 领取记录 | 按日期落到对应日志，**已存在的行不重复添加** |
+| 房间 | 同一房间号：时间取较新、次数取较大；新房间直接加入 |
+| 字符数 | 同一小时取**较大的累计值**（累计只增不减） |
+| 设置 | 导入时选「是」才覆盖本机；选「否」只合并数据 |
+
+导入前的对话框会显示包来自哪台机器、导出时间、各段条数，按「是 / 否 / 取消」决定。
+
+**命令行用法**（适合脚本/自动化）
+
+```text
+WuwaChest.exe --sync-export D:\sync\a.wcsync
+WuwaChest.exe --sync-import D:\sync\a.wcsync              只合并数据
+WuwaChest.exe --sync-import D:\sync\a.wcsync --with-settings   连设置一起覆盖
+```
 ## 配置文件 `config.json`
 
 程序第一次运行会在 exe 同目录生成，改完在「设置」页点「保存并应用」即可。
@@ -119,6 +176,9 @@ Set-ItemProperty -Path $key -Name 'WuwaTappo.exe' -Value '--remote-debugging-por
 | `backgroundDim` | `45` | 背景图压暗程度 0–90 |
 | `cdpEnabled` | `true` | 优先用 CDP |
 | `cdpPort` | `9333` | 调试端口（和注册表里写的一致） |
+| `cdpAutoEnable` | `true` | 启动时自动检查/写入调试策略 |
+| `cdpAutoRestartPet` | `true` | 写策略后自动重启桌宠让它生效 |
+| `cdpDisableOnExit` | `true` | 退出时撤销「本次自己写的」策略 |
 
 两个固定值不需要配置：**领取一次消耗 1000 字符**、**没有 CDP 时的兜底检测间隔 30 分钟**。
 
@@ -133,6 +193,10 @@ WuwaChest.exe --history         打开面板并切到「领取记录」
 WuwaChest.exe --settings        打开面板并切到「设置」
 WuwaChest.exe --tools           打开面板并切到「工具」
 WuwaChest.exe --stats           打开面板并切到「统计」
+WuwaChest.exe --sync-export <文件>              导出同步包
+WuwaChest.exe --sync-import <文件>              导入同步包（只合并数据）
+WuwaChest.exe --sync-import <文件> --with-settings   连设置一起覆盖
+WuwaChest.exe --set-background <图片>           设置面板背景图
 WuwaChest.exe --probe           打印识别到的界面元素（排障）
 WuwaChest.exe --once            立即检测并领取一次，然后退出
 WuwaChest.exe --once --dry-run  只看不点
@@ -239,6 +303,13 @@ WuwaChest.exe --boost 1000      走内部通道加 1000 字符（需 CDP）
 
 ## 更新日志
 
+### v2.2
+- 新增：自动开启/关闭 CDP（启动写策略、必要时重启桌宠，退出撤销自己写的）
+- 新增：跨电脑同步（导出/导入 `.wcsync`，合并记录、房间、字符数）
+- 修复：背景图「先删后拷」导致选到程序目录里的图会把源文件删掉
+- 修复：连续两次领取时，第二条记录会串进上一个弹窗的奖励名/文字
+- 新增命令行：`--sync-export` / `--sync-import` / `--set-background`
+
 ### v2.1
 - 修复：联机模式下奖励截图截成「头像栏」——UIA 兜底把玩家列表当成了弹窗
 - 弹窗截图窗口延长到约 5 秒，并支持 `.chest-reward-popup-layer` 的挂载方式
@@ -255,3 +326,6 @@ WuwaChest.exe --boost 1000      走内部通道加 1000 字符（需 CDP）
 - 新增：字符数统计图表（逐小时 / 逐天）
 - 新增：自定义背景图（整窗一张图）
 - 去掉：模拟真实点击
+
+---
+

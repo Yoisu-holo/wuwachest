@@ -1,4 +1,4 @@
-// Rooms.cs — 联机房间：读当前房间号、记录历史、一键重连
+﻿// Rooms.cs — 联机房间：读当前房间号、记录历史、一键重连
 // 面板窗口（#/panel）里的 .room-module 才有房间信息；重连就是「先离开、再填号、再点加入」，
 // 和上游 WuwaTappoPlus 的 rooms.js 走同一套 DOM，不碰协议。
 using System;
@@ -393,6 +393,41 @@ namespace WuwaChest
                 File.WriteAllText(_path, sb.ToString(), new UTF8Encoding(false));
             }
             catch { }
+        }
+
+        /// <summary>合并外部房间行（房间号|房主|时间|次数），取较新时间与较大次数</summary>
+        public void MergeLines(IEnumerable<string> lines)
+        {
+            if (lines == null) return;
+            lock (_lock)
+            {
+                foreach (var line in lines)
+                {
+                    if (string.IsNullOrEmpty(line)) continue;
+                    var p = line.Split('|');
+                    if (p.Length < 4) continue;
+                    string id = p[0].Trim();
+                    if (id.Length == 0) continue;
+
+                    DateTime seen;
+                    int visits;
+                    DateTime.TryParse(p[2], out seen);
+                    int.TryParse(p[3], out visits);
+
+                    RoomEntry found = null;
+                    foreach (var entry in _rooms) { if (entry.Id == id) { found = entry; break; } }
+                    if (found == null)
+                    {
+                        _rooms.Add(new RoomEntry { Id = id, Owner = p[1], LastSeen = seen, Visits = visits });
+                    }
+                    else
+                    {
+                        if (seen > found.LastSeen) { found.LastSeen = seen; found.Owner = p[1]; }
+                        if (visits > found.Visits) found.Visits = visits;
+                    }
+                }
+            }
+            Save();
         }
     }
 }

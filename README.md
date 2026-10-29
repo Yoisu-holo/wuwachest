@@ -292,6 +292,21 @@ WuwaChest.exe --boost 1000      走内部通道加 1000 字符（需 CDP）
 
 ---
 
+## 开发与致谢
+
+这个工具是用 **DeepSeek Harness（DSH）** 做出来的：从需求、写代码、编译、调试到发版，全程在 DSH 里完成——包括 CDP 调试、截图裁剪的反复试验、以及那几个「联机模式下截图串台」的问题定位。
+
+开发过程中参考了下面两个同人项目的**思路**，没有引入它们的任何代码：
+
+| 项目 | 参考了什么 |
+| --- | --- |
+| **WuwaTappoPlus** | 「用 CDP 读写桌宠页面」的整套方法：怎么找 `#/panel` 页面、怎么从 `.room-module` 里解析房间号和房主、怎么记录房间历史。本工具的联机房间功能就是顺着这条线索做的 |
+| **Wuwatappo_Helper** | 从它的补丁配置里发现桌宠自带了 `cat-panel-action` → `boost-local-clicks` 这个隐藏动作（官方那个 +10000 按钮），本工具的「内部通道加字符」就是照这个线索实现的 |
+
+另外要感谢 Wuwa Tappo 本身——它的页面结构（`.text.web-bold-font`、`.reward-btn`、`.room-module`、`.chest-reward-popup` 等）是这个工具能工作的基础。
+
+界面没有用任何第三方 UI 库：毛玻璃面板、折线柱状图、标签控件都是自己画的（`GlassPanel.cs`、`ChartPanel.cs`、`CompositedTabControl.cs`）。
+
 ## 免责声明
 
 - 本工具是第三方软件，与库洛游戏、Wuwa Tappo 官方**没有任何关系**

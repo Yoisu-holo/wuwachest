@@ -32,6 +32,7 @@ namespace WuwaChest
         private readonly Label _lastClaim;
         private readonly TextBox _logBox;
         private readonly Label _footer;
+        private readonly Label _versionLabel;
 
         private readonly TabControl _tabs;
         private readonly ListView _claimList;
@@ -259,16 +260,32 @@ namespace WuwaChest
                 ForeColor = Muted,
                 Dock = DockStyle.Fill,
                 TextAlign = ContentAlignment.MiddleCenter,
-                BackColor = Color.FromArgb(246, 236, 222),
+                BackColor = Color.Transparent,
                 Font = new Font("Microsoft YaHei UI", 8f)
             };
+
+            _versionLabel = new Label
+            {
+                Text = "v" + Program.Version,
+                ForeColor = Muted,
+                Dock = DockStyle.Right,
+                Width = 56,
+                TextAlign = ContentAlignment.MiddleRight,
+                BackColor = Color.Transparent,
+                Padding = new Padding(0, 0, 8, 0),
+                Font = new Font("Microsoft YaHei UI", 8f)
+            };
+
+            var footerBar = new Panel { Dock = DockStyle.Fill, BackColor = Color.FromArgb(246, 236, 222) };
+            footerBar.Controls.Add(_footer);
+            footerBar.Controls.Add(_versionLabel);
 
             root.Controls.Add(header, 0, 0);
             root.Controls.Add(card, 0, 1);
             root.Controls.Add(info, 0, 2);
             root.Controls.Add(buttons, 0, 3);
             root.Controls.Add(logPanel, 0, 4);
-            root.Controls.Add(_footer, 0, 5);
+            root.Controls.Add(footerBar, 0, 5);
             statusPage.Controls.Add(root);
 
             // ---------------- 领取记录页 ----------------

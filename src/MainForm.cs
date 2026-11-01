@@ -479,7 +479,7 @@ namespace WuwaChest
 
             toolsFlow.Controls.Add(new Label
             {
-                Text = "加字符（内部通道）",
+                Text = "加字符（本地计数）",
                 ForeColor = Ink,
                 AutoSize = true,
                 Font = new Font("Microsoft YaHei UI", 10f, FontStyle.Bold),
@@ -487,8 +487,8 @@ namespace WuwaChest
             });
             toolsFlow.Controls.Add(new Label
             {
-                Text = "通过桌宠自带的内部事件加字符，和官方那个隐藏的 +10000 按钮是同一条通道。\r\n" +
-                       "瞬间到账，不动鼠标；服务端会在稍后同步。",
+                Text = "给桌宠的本地计数加数，它自己会把累计值上报给服务器（几秒后同步）。\r\n" +
+                       "不用模拟鼠标、不用点界面；风险提示见 README。",
                 ForeColor = Muted,
                 AutoSize = true,
                 MaximumSize = new Size(400, 0),
@@ -1594,37 +1594,37 @@ namespace WuwaChest
         }
 
 
-        // 内部通道：瞬间加字符（桌宠自带的 boost-local-clicks）
+        // 加字符：直接给桌宠的本地计数加数，它自己会上报给服务端
         private void BoostClicks(int delta)
         {
             if (!CdpDiscovery.IsAvailable(_cfg.CdpPort))
             {
                 MessageBox.Show(this,
-                    "调试端口没开，内部通道用不了。\r\n\r\n" +
+                    "调试端口没开，加字符用不了。\r\n\r\n" +
                     "可以先用下面的「真实点击」档位，或者用 运行CDP测试.cmd 启用调试端口。",
-                    "内部通道不可用", MessageBoxButtons.OK, MessageBoxIcon.Warning);
+                    "加字符不可用", MessageBoxButtons.OK, MessageBoxIcon.Warning);
                 return;
             }
 
             var confirm = MessageBox.Show(this,
-                string.Format("通过桌宠内部通道加 {0} 字符？\r\n\r\n" +
+                string.Format("给桌宠的本地计数加 {0} 字符？\r\n\r\n" +
                               "这条通道官方程序里本来就有（隐藏的 +10000 按钮），实测服务端会接受；\r\n" +
                               "但本质仍是利用调试接口，请自行判断风险。", delta),
-                "内部通道加字符", MessageBoxButtons.OKCancel, MessageBoxIcon.Question);
+                "加字符", MessageBoxButtons.OKCancel, MessageBoxIcon.Question);
             if (confirm != DialogResult.OK) return;
 
             var cdp = new CdpPetClient(_cfg);
             string detail;
             if (cdp.BoostLocalClicks(delta, out detail))
             {
-                Log.Action("内部通道加字符：+" + delta);
-                _farmLabel.Text = "内部通道已发送 +" + delta + "（服务端会稍后同步）";
+                Log.Action("加字符：+" + delta);
+                _farmLabel.Text = "已加 " + delta + "（桌宠会在几秒内上报）";
                 _engine.Peek();
             }
             else
             {
-                Log.Warn("内部通道加字符失败：" + detail);
-                _farmLabel.Text = "内部通道失败：" + detail;
+                Log.Warn("加字符失败：" + detail);
+                _farmLabel.Text = "加字符失败：" + detail;
             }
         }
 

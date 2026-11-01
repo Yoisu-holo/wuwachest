@@ -526,17 +526,43 @@ namespace WuwaChest
             if (page == null) { detail = "CDP：找不到主页面"; return false; }
             if (delta <= 0) { detail = "数量必须大于 0"; return false; }
 
+            // 新版桌宠删掉了官方的 boost-local-clicks 动作，但 store 里的本地计数还在，
+            // 而且桌宠会自己把这些计数上报给服务端（实测 10 秒内 total_click_count 会涨）。
             string script =
-                "window.__TAURI_INTERNALS__.invoke('plugin:event|emit'," +
-                "{event:'cat-panel-action',payload:{type:'boost-local-clicks',delta:" + delta + "}})" +
-                ".then(function(){return 'ok';}).catch(function(e){return 'err:'+e;})";
+                "(function(){" +
+                "var a=document.querySelector('#app');" +
+                "if(!a||!a.__vue_app__)return 'nostore';" +
+                "var p=a.__vue_app__.config.globalProperties.$pinia;" +
+                "var gs=p?p._s.get('GlobalState'):null;if(!gs)return 'nostore';" +
+                "if(typeof gs.incrementLocalClickCount!=='function')return 'noaction';" +
+                "var before=Number(gs.localClickCount||0);" +
+                "for(var i=0;i<" + delta + ";i++){ gs.incrementLocalClickCount(); }" +
+                "var after=Number(gs.localClickCount||0);" +
+                "return 'delta:'+(after-before);" +
+                "})()";
 
             using (var session = CdpSession.Connect(page.WebSocketUrl, 4000))
             {
                 if (session == null) { detail = "CDP：连接失败"; return false; }
-                string result = session.EvaluateString(script, 5000, true);
-                if (result == "ok") { detail = "内部通道 +" + delta; return true; }
-                detail = "内部通道返回：" + (result ?? "空");
+                string result = session.EvaluateString(script, 15000);
+
+                if (result == "nostore") { detail = "页面里没有 store"; return false; }
+                if (result == "noaction") { detail = "这个版本没有本地计数接口"; return false; }
+
+                if (!string.IsNullOrEmpty(result) && result.StartsWith("delta:", StringComparison.Ordinal))
+                {
+                    int added;
+                    int.TryParse(result.Substring(6), out added);
+                    if (added > 0)
+                    {
+                        detail = "本地计数 +" + added + "（桌宠会在几秒内上报）";
+                        return true;
+                    }
+                    detail = "本地计数没有变化";
+                    return false;
+                }
+
+                detail = "返回：" + (result ?? "空");
                 return false;
             }
         }

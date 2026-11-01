@@ -130,7 +130,7 @@ namespace WuwaChest
             return false;
         }
 
-        internal const string Version = "2.4";
+        internal const string Version = "2.5";
 
         private static void WriteHelp()
         {
@@ -146,7 +146,7 @@ namespace WuwaChest
             Console.WriteLine("  WuwaChest.exe --probe         打印当前识别到的界面元素（排障）");
             Console.WriteLine("  WuwaChest.exe --once          立即检测并领取一次，然后退出");
             Console.WriteLine("  WuwaChest.exe --once --dry-run  只看不点");
-            Console.WriteLine("  WuwaChest.exe --boost 1000    走内部通道瞬间加 1000 字符（需 CDP）");
+            Console.WriteLine("  WuwaChest.exe --boost 1000    给本地计数加 1000 字符（需 CDP）");
             Console.WriteLine("");
             Console.WriteLine("配置：config.json    日志：logs\\chest-yyyyMMdd.log");
         }
@@ -211,7 +211,7 @@ namespace WuwaChest
             return 0;
         }
 
-        // 命令行内部通道加字符：WuwaChest.exe --boost 1000
+        // 命令行加字符：WuwaChest.exe --boost 1000
         private static int RunBoost(int count, AppConfig cfg)
         {
             bool attached = Native.TryAttachConsole();
@@ -225,7 +225,7 @@ namespace WuwaChest
             string detail;
             bool ok = cdp.BoostLocalClicks(count, out detail);
             if (attached) Console.WriteLine((ok ? "成功：" : "失败：") + detail);
-            Log.Action("命令行内部通道加字符：" + (ok ? "+" + count : "失败 " + detail));
+            Log.Action("命令行加字符：" + (ok ? "+" + count : "失败 " + detail));
             return ok ? 0 : 1;
         }
 
